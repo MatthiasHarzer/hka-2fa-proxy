@@ -1,4 +1,4 @@
-module template
+module github.com/MatthiasHarzer/hka-2fa-proxy
 
 go 1.25.0
 

@@ -1,6 +1,6 @@
 BUILD_VERSION ?= "unknown"
 
-OUTPUT_NAME := "template"
+OUTPUT_NAME := "hka-2fa-proxy"
 
 clean:
 	@rm -rf build/
