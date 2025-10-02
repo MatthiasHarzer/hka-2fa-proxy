@@ -9,7 +9,7 @@ A simple proxy to internal access of Outlook Web Access (OWA) by providing the O
 Download the [latest release](https://github.com/MatthiasHarzer/hka-2fa-proxy/releases) and add the executable to your `PATH`.
 
 ## Usage
-1. Start the proxy with `hka-2fa-proxy -u <rz-username> -s <otp-secret> [-p <port>]`.
+1. Start the proxy with `hka-2fa-proxy run -u <rz-username> -s <otp-secret> [-p <port>]`.
 	 - The `-u` / `--username` flag is used to specify the RZ username.
 	 - The `-s` / `--secret` flag is used to specify the OTP secret (Base32 encoded).
 	 - The `-p` / `--port` flag is optional and specifies the port to listen on (default is 8080).
