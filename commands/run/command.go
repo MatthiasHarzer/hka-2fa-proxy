@@ -1,7 +1,10 @@
 package run
 
 import (
+	"errors"
+	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/MatthiasHarzer/hka-2fa-proxy/otp"
 	"github.com/MatthiasHarzer/hka-2fa-proxy/proxy"
@@ -10,17 +13,26 @@ import (
 
 var username string
 var otpSecret string
+var port int
 
 func init() {
 	Command.Flags().StringVarP(&username, "username", "u", "", "The username to use for authentication")
 	Command.Flags().StringVarP(&otpSecret, "secret", "s", "", "The OTP-secret to use for generating the OTPs")
+	Command.Flags().IntVarP(&port, "port", "p", 8080, "The port to run the proxy on")
 }
 
 var Command = &cobra.Command{
 	Use:   "run",
 	Short: "Runs the proxy server",
 	Long:  "Runs the proxy server",
-	Run: func(c *cobra.Command, args []string) {
+	RunE: func(c *cobra.Command, args []string) error {
+		if username == "" {
+			return errors.New("username is required")
+		}
+		if otpSecret == "" {
+			return errors.New("otp-secret is required")
+		}
+
 		generator, err := otp.NewGenerator(otpSecret)
 		if err != nil {
 			panic(err)
@@ -30,9 +42,9 @@ var Command = &cobra.Command{
 			panic(err)
 		}
 
-		err = http.ListenAndServe(":8080", server)
-		if err != nil {
-			panic(err)
-		}
+		log.Printf("starting server on port %d\n", port)
+
+		err = http.ListenAndServe(strconv.Itoa(port), server)
+		return err
 	},
 }
