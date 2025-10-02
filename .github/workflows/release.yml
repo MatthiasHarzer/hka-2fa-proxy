@@ -14,7 +14,7 @@ jobs:
   get-next-version:
     name: Get next version
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     outputs:
       hasNextVersion: ${{ steps.get-next-version.outputs.hasNextVersion }}
       version: ${{ steps.get-next-version.outputs.version }}
@@ -51,7 +51,7 @@ jobs:
           git push origin v${{ needs.get-next-version.outputs.version }}
       - name: Build artifacts
         run: |
-          make build BUILD_VERSION=${{ needs.get-next-version.outputs.version }}
+          make build BUILD_VERSION=v${{ needs.get-next-version.outputs.version }}
       - name: Release new version
         uses: ncipollo/release-action@v1
         with:
@@ -79,3 +79,5 @@ jobs:
           tags: |
             ghcr.io/matthiasharzer/hka-2fa-proxy:latest
             ghcr.io/matthiasharzer/hka-2fa-proxy:${{ needs.get-next-version.outputs.version }}
+          build-args: |
+            version=v${{ needs.get-next-version.outputs.version }}

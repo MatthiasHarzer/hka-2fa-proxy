@@ -1,22 +1,26 @@
 FROM golang:1.25.0-alpine3.22 as build
 
 ARG version
-ARG gitVersion
+
+RUN if [ -z "$version" ]; then \
+			echo "version is not set"; \
+			exit 1; \
+    fi
 
 RUN apk update && \
-    apk add git
+		apk add git
 
 WORKDIR /go/src
 
 COPY go.mod go.sum ./
 RUN go mod download && \
-    go mod verify
+		go mod verify
 
 COPY . .
 
 RUN go build \
 		-trimpath \
-    -ldflags="-X main.version=${version}" \
+		-ldflags="-X main.version=${version}" \
 		-o ../bin/hka-2fa-proxy \
 		.
 
@@ -25,9 +29,9 @@ FROM alpine:3.22.1
 COPY --from=build /go/bin/hka-2fa-proxy /usr/local/bin/hka-2fa-proxy
 
 RUN addgroup -S proxy && \
-    adduser -S -G proxy proxy && \
-    mkdir -p /var/lib/hka-2fa-proxy && \
-    chown proxy:proxy /var/lib/hka-2fa-proxy
+		adduser -S -G proxy proxy && \
+		mkdir -p /var/lib/hka-2fa-proxy && \
+		chown proxy:proxy /var/lib/hka-2fa-proxy
 
 WORKDIR /var/lib/hka-2fa-proxy
 USER proxy
