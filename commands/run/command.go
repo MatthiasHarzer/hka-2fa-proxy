@@ -18,14 +18,17 @@ func init() {
 
 var Command = &cobra.Command{
 	Use:   "run",
-	Short: "Runs the proxy",
-	Long:  "Runs the proxy",
+	Short: "Runs the proxy server",
+	Long:  "Runs the proxy server",
 	Run: func(c *cobra.Command, args []string) {
 		generator, err := otp.NewGenerator(otpSecret)
 		if err != nil {
 			panic(err)
 		}
-		server := proxy.NewServer("https://owa.h-ka.de", username, generator)
+		server, err := proxy.NewServer("https://owa.h-ka.de", username, generator)
+		if err != nil {
+			panic(err)
+		}
 
 		err = http.ListenAndServe(":8080", server)
 		if err != nil {

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MatthiasHarzer/hka-2fa-proxy/otp"
@@ -18,11 +18,34 @@ const (
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
 )
 
-func isLoggedIn(bodyString string) bool {
-	if strings.Contains(strings.ToLower(bodyString), "anmeldung") {
-		return false
+func isLoginSuccessful(response *http.Response) bool {
+	return response.StatusCode == http.StatusFound // For some reason
+}
+
+func isLoginPage(body string) bool {
+	return strings.Contains(body, "Welcome to HKA MFA-protected Services.")
+}
+
+func isRedirectToLogin(response *http.Response) bool {
+	location := response.Header.Get("Location")
+	return strings.Contains(location, "lm_auth_proxy")
+}
+
+type server struct {
+	otpGenerator otp.Generator
+	targetHost   string
+	username     string
+	client       *http.Client
+	mutex        *sync.Mutex
+}
+
+func NewServer(targetHost, username string, otpGenerator otp.Generator) (http.Handler, error) {
+	sv := &server{targetHost: targetHost, otpGenerator: otpGenerator, username: username, mutex: &sync.Mutex{}}
+	err := sv.authenticateClient()
+	if err != nil {
+		return nil, fmt.Errorf("could not authenticate client: %w", err)
 	}
-	return true
+	return sv, nil
 }
 
 // getLoginParameters performs the initial request to get session cookies and login form parameters.
@@ -97,20 +120,11 @@ func (s *server) submitLogin(client *http.Client, params url.Values, refererURL,
 	return resp, nil
 }
 
-type server struct {
-	otpGenerator otp.Generator
-	targetHost   string
-	username     string
-}
-
-func NewServer(targetHost, username string, otpGenerator otp.Generator) http.Handler {
-	return &server{targetHost: targetHost, otpGenerator: otpGenerator, username: username}
-}
-
-func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *server) authenticateClient() error {
+	log.Println("authenticating client")
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		log.Fatalf("Failed to create cookie jar: %v", err)
+		log.Fatalf("failed to create cookie jar: %v", err)
 	}
 
 	// Create a custom HTTP client
@@ -125,50 +139,35 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	loginParams, refererURL, err := s.getLoginParameters(client)
 	if err != nil {
-		log.Fatalf("Could not get login parameters: %v", err)
+		log.Fatalf("could not get login parameters: %v", err)
 	}
 
-	client.CheckRedirect = nil // Set back to default behavior
-
+	// This is required, as one OTP can only be used once. To prevent timing issues, we wait for the next interval.
+	s.otpGenerator.WaitForNextInterval()
 	password := s.otpGenerator.Generate(time.Now())
-	fmt.Println("Generated OTP:", password)
+
 	loginResp, err := s.submitLogin(client, loginParams, refererURL, s.username, password)
 	if err != nil {
-		log.Fatalf("Could not submit login: %v", err)
+		log.Fatalf("could not submit login: %v", err)
 	}
 	defer loginResp.Body.Close()
 
-	fmt.Println("\n--- Login Attempt Finished ---")
-	fmt.Printf("Final Status Code: %s\n", loginResp.Status)
-	fmt.Printf("Final URL: %s\n", loginResp.Request.URL)
-
-	// Read the body to check for login failure keywords
-	bodyBytes, err := io.ReadAll(loginResp.Body)
-	if err != nil {
-		log.Fatalf("Failed to read login response body: %v", err)
-	}
-	bodyString := string(bodyBytes)
-
-	// save the body for debugging
-	err = os.WriteFile("debug_login_response.html", bodyBytes, 0644)
-	if err != nil {
-		log.Fatalf("Failed to write debug file: %v", err)
+	if !isLoginSuccessful(loginResp) {
+		return fmt.Errorf("login failed")
 	}
 
-	if !isLoggedIn(bodyString) {
-		http.Error(w, "Login failed. You were likely redirected back to the login page.", http.StatusUnauthorized)
-		return
-	}
+	s.client = client
 
-	s.proxyRequest(w, r, client)
+	log.Println("client authenticated successfully")
+
+	return nil
 }
 
-func (s *server) proxyRequest(w http.ResponseWriter, r *http.Request, client *http.Client) {
+func (s *server) proxyRequest(w http.ResponseWriter, r *http.Request, client *http.Client) error {
 	// Create a new request based on the original one
 	proxyReq, err := http.NewRequest(r.Method, s.targetHost+r.RequestURI, r.Body)
 	if err != nil {
-		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
-		return
+		return err
 	}
 
 	// Copy headers from the original request
@@ -182,10 +181,19 @@ func (s *server) proxyRequest(w http.ResponseWriter, r *http.Request, client *ht
 	// Perform the request
 	resp, err := client.Do(proxyReq)
 	if err != nil {
-		http.Error(w, "Failed to perform proxy request", http.StatusBadGateway)
-		return
+		return err
 	}
 	defer resp.Body.Close()
+
+	responseBodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %w", err)
+	}
+	responseBody := string(responseBodyBytes)
+
+	if isLoginPage(responseBody) || isRedirectToLogin(resp) {
+		return fmt.Errorf("not logged in anymore")
+	}
 
 	// Copy response headers
 	for name, values := range resp.Header {
@@ -198,8 +206,29 @@ func (s *server) proxyRequest(w http.ResponseWriter, r *http.Request, client *ht
 	w.WriteHeader(resp.StatusCode)
 
 	// Copy the response body
-	_, err = io.Copy(w, resp.Body)
+	_, err = w.Write(responseBodyBytes)
 	if err != nil {
-		log.Printf("Error copying response body: %v", err)
+		log.Printf("error copying response body: %v", err)
+	}
+	return nil
+}
+
+func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	log.Printf("proxying request: %s %s", r.Method, r.URL.String())
+
+	err := s.proxyRequest(w, r, s.client)
+	if err != nil {
+		err = s.authenticateClient()
+		if err != nil {
+			http.Error(w, "re-authentication failed: "+err.Error(), http.StatusBadGateway)
+			return
+		}
+		err = s.proxyRequest(w, r, s.client)
+		if err != nil {
+			http.Error(w, "proxy error after re-authentication: "+err.Error(), http.StatusBadGateway)
+		}
 	}
 }
