@@ -66,5 +66,5 @@ jobs:
           provenance: mode=max
           push: true
           tags: |
-            ghcr.io/thenativeweb/eventsourcingdb:latest
-            ghcr.io/thenativeweb/eventsourcingdb:${{ needs.get-next-version.outputs.version }}
+            ghcr.io/matthiasharzer/hka-2fa-proxy:latest
+            ghcr.io/matthiasharzer/hka-2fa-proxy:${{ needs.get-next-version.outputs.version }}

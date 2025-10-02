@@ -2,9 +2,9 @@ package run
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 
 	"github.com/MatthiasHarzer/hka-2fa-proxy/otp"
 	"github.com/MatthiasHarzer/hka-2fa-proxy/proxy"
@@ -35,16 +35,17 @@ var Command = &cobra.Command{
 
 		generator, err := otp.NewGenerator(otpSecret)
 		if err != nil {
-			panic(err)
+			return err
 		}
+
 		server, err := proxy.NewServer("https://owa.h-ka.de", username, generator)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		log.Printf("starting server on port %d\n", port)
 
-		err = http.ListenAndServe(strconv.Itoa(port), server)
+		err = http.ListenAndServe(fmt.Sprintf(":%d", port), server)
 		return err
 	},
 }

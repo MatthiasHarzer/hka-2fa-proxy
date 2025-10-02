@@ -125,7 +125,7 @@ func (s *server) authenticateClient() error {
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		log.Fatalf("failed to create cookie jar: %v", err)
+		return fmt.Errorf("could not create cookie jar: %w", err)
 	}
 
 	// Create a custom HTTP client
@@ -140,7 +140,7 @@ func (s *server) authenticateClient() error {
 
 	loginParams, refererURL, err := s.getLoginParameters(client)
 	if err != nil {
-		log.Fatalf("could not get login parameters: %v", err)
+		return fmt.Errorf("could not get login parameters: %w", err)
 	}
 
 	// This is required, as one OTP can only be used once. To prevent timing issues, we wait for the next interval.
@@ -149,7 +149,7 @@ func (s *server) authenticateClient() error {
 
 	loginResp, err := s.submitLogin(client, loginParams, refererURL, s.username, password)
 	if err != nil {
-		log.Fatalf("could not submit login: %v", err)
+		return fmt.Errorf("could not submit login: %w", err)
 	}
 	defer loginResp.Body.Close()
 
