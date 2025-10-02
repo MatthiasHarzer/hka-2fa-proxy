@@ -1,0 +1,4 @@
+### GET request to example server
+GET http://localhost:8080/owa/calendar/1ddadd657c25410e8526cbc5381c9d7d@h-ka.de/d40249b9a39c41e28f5a7369be6d5a98419692210135161637/calendar.ics
+
+###
