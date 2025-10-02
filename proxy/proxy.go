@@ -122,6 +122,7 @@ func (s *server) submitLogin(client *http.Client, params url.Values, refererURL,
 
 func (s *server) authenticateClient() error {
 	log.Println("authenticating client")
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		log.Fatalf("failed to create cookie jar: %v", err)
