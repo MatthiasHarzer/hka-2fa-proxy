@@ -1,6 +1,6 @@
 # HKA 2FA Proxy (owa)
 
-A simple proxy to internal access of Outlook Web Access (OWA) by providing the OTP secret. This can be used to integrate the Outlook calendar into other applications, which usually requires providing the OTP next to calendar-share URL. 
+A simple proxy to internal access of Outlook Web Access (OWA) by providing the OTP secret. This can be used to integrate the Outlook calendar into other applications, which usually requires signing in with the OTP when accessing the calendar-share URL. 
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <br>
